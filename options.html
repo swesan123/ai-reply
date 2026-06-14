@@ -139,6 +139,24 @@
   </section>
 
   <section>
+    <h2>Prompt Monitor (Debug)</h2>
+    <p>See exactly what prompt the AI will receive on your next reply. This helps debug why feedback might not be working.</p>
+    <label>
+      <input type="radio" name="monitorType" value="lease" checked>
+      Monitor "Generate Lease Reply" prompt
+    </label>
+    <label>
+      <input type="radio" name="monitorType" value="followup">
+      Monitor "Generate Follow-up Reply" prompt
+    </label>
+    <p style="font-size: 12px; color: #999; margin: 8px 0;">
+      <strong>Note:</strong> This shows the system prompt that will be sent to the AI, with your memory log appended at the bottom.
+    </p>
+    <textarea id="promptMonitor" rows="20" readonly style="font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word;"></textarea>
+    <button class="secondary" id="refreshMonitor">Refresh Preview</button>
+  </section>
+
+  <section>
     <h2>API Settings</h2>
     <button id="saveBtn">Save API Settings</button>
     <span id="saveStatus"></span>
