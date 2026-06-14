@@ -156,6 +156,22 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     ? buildFollowUpPrompt(memoryMd || "")
     : await buildSystemPrompt(customPrompt, memoryMd || "");
 
+  // Show "Generating..." immediately
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "SHOW_LOADING" });
+  } catch {
+    // Content script not loaded, inject it and then show loading
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["content.js"]
+    });
+    await chrome.scripting.insertCSS({
+      target: { tabId: tab.id },
+      files: ["content.css"]
+    });
+    await chrome.tabs.sendMessage(tab.id, { type: "SHOW_LOADING" });
+  }
+
   let reply;
   try {
     if ((provider || "gemini") === "gemini") {
@@ -167,11 +183,16 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     reply = `Error: ${err.message}`;
   }
 
-  chrome.tabs.sendMessage(tab.id, {
-    type: "SHOW_REPLY",
-    reply,
-    selectedText
-  });
+  // Send the actual reply
+  try {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "SHOW_REPLY",
+      reply,
+      selectedText
+    });
+  } catch (err) {
+    console.error("Failed to send reply to tab:", err);
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

@@ -1,5 +1,7 @@
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "SHOW_REPLY") {
+  if (msg.type === "SHOW_LOADING") {
+    showLoadingPopup();
+  } else if (msg.type === "SHOW_REPLY") {
     showPopup(msg.reply, msg.selectedText);
   }
 });
@@ -7,6 +9,64 @@ chrome.runtime.onMessage.addListener((msg) => {
 function removeExistingPopup() {
   const existing = document.getElementById("woolly-sloth-popup");
   if (existing) existing.remove();
+}
+
+function showLoadingPopup() {
+  removeExistingPopup();
+
+  const popup = document.createElement("div");
+  popup.id = "woolly-sloth-popup";
+  popup.className = "ws-popup";
+
+  const header = document.createElement("div");
+  header.className = "ws-header";
+  header.innerHTML = `
+    <span>Woolly Sloth — Generating Reply...</span>
+    <button class="ws-close" disabled style="opacity: 0.5;">✕</button>
+  `;
+
+  const body = document.createElement("div");
+  body.className = "ws-body";
+  body.style.textAlign = "center";
+  body.style.padding = "40px 16px";
+  body.innerHTML = `
+    <div style="font-size: 14px; color: #666;">
+      <div style="margin-bottom: 12px;">⏳ Generating your reply...</div>
+      <div style="font-size: 12px; color: #999;">This usually takes 3-5 seconds</div>
+    </div>
+  `;
+
+  popup.appendChild(header);
+  popup.appendChild(body);
+
+  const target = document.body || document.documentElement;
+  target.appendChild(popup);
+
+  // Make it draggable even while loading
+  let isDragging = false;
+  let dragOffsetX = 0;
+  let dragOffsetY = 0;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.classList.contains("ws-close")) return;
+    isDragging = true;
+    dragOffsetX = e.clientX - popup.offsetLeft;
+    dragOffsetY = e.clientY - popup.offsetTop;
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    let x = e.clientX - dragOffsetX;
+    let y = e.clientY - dragOffsetY;
+    x = Math.max(0, Math.min(x, window.innerWidth - popup.offsetWidth));
+    y = Math.max(0, Math.min(y, window.innerHeight - popup.offsetHeight));
+    popup.style.left = x + "px";
+    popup.style.top = y + "px";
+  });
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
 }
 
 function showPopup(reply, selectedText) {
