@@ -198,25 +198,25 @@ function showPopup(reply, selectedText, isFollowUp) {
 
   // Submit feedback
   submitFeedbackBtn.addEventListener("click", () => {
-    const feedbackText = feedbackText.value.trim();
+    const feedbackContent = feedbackText.value.trim();
 
-    if (!feedbackText) {
+    if (!feedbackContent) {
       alert("Please provide some feedback before submitting.");
       return;
     }
 
     chrome.runtime.sendMessage({
       type: "SAVE_FEEDBACK",
-      feedback: feedbackText,
+      feedback: feedbackContent,
       selectedText,
       reply
     }, () => {
-      feedbackForm.style.display = "none";
-      thumbUp.classList.remove("active");
-      thumbDown.classList.remove("active");
+      feedbackText.value = "";
+      submitFeedbackBtn.disabled = true;
       thankYou.style.display = "block";
       setTimeout(() => {
         thankYou.style.display = "none";
+        submitFeedbackBtn.disabled = false;
       }, 2500);
     });
   });

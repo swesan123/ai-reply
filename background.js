@@ -125,7 +125,7 @@ async function callOpenAI(apiKey, systemPrompt, userText) {
 async function saveFeedback(feedbackText, selectedText, reply) {
   const { memoryMd } = await chrome.storage.local.get("memoryMd");
   const date = new Date().toISOString().split("T")[0];
-  const entry = `\n## ${date}\n${feedbackText}\n**Customer message:** ${selectedText.slice(0, 400)}\n**Reply snippet:** ${reply.slice(0, 400)}\n`;
+  const entry = `\n## ${date}\n${feedbackText}\n**Customer message:** ${selectedText.slice(0, 1000)}\n**Reply snippet:** ${reply.slice(0, 1000)}\n`;
   const updated = (memoryMd || "") + entry;
   await chrome.storage.local.set({ memoryMd: updated });
 }
