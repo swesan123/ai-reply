@@ -2,7 +2,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "SHOW_LOADING") {
     showLoadingPopup();
   } else if (msg.type === "SHOW_REPLY") {
-    showPopup(msg.reply, msg.selectedText);
+    showPopup(msg.reply, msg.selectedText, msg.isFollowUp);
   }
 });
 
@@ -69,17 +69,21 @@ function showLoadingPopup() {
   });
 }
 
-function showPopup(reply, selectedText) {
+function showPopup(reply, selectedText, isFollowUp) {
   removeExistingPopup();
+
+  // Store for regenerate
+  window.lastRequest = { selectedText, isFollowUp };
 
   const popup = document.createElement("div");
   popup.id = "woolly-sloth-popup";
   popup.className = "ws-popup";
 
+  const headerTitle = isFollowUp ? "Follow-up Reply" : "Lease Reply";
   const header = document.createElement("div");
   header.className = "ws-header";
   header.innerHTML = `
-    <span>Woolly Sloth — Lease Reply</span>
+    <span>Woolly Sloth — ${headerTitle}</span>
     <button class="ws-close">✕</button>
   `;
 
@@ -92,21 +96,24 @@ function showPopup(reply, selectedText) {
   copyBtn.className = "ws-copy";
   copyBtn.textContent = "Copy to Clipboard";
 
-  const feedbackRow = document.createElement("div");
-  feedbackRow.className = "ws-feedback-row";
-  feedbackRow.innerHTML = `
-    <span>Helpful?</span>
-    <button class="ws-thumb-up">👍</button>
-    <button class="ws-thumb-down">👎</button>
-  `;
+  const regenerateBtn = document.createElement("button");
+  regenerateBtn.className = "ws-regenerate";
+  regenerateBtn.textContent = "Regenerate";
 
-  const feedbackForm = document.createElement("div");
-  feedbackForm.className = "ws-feedback-form";
-  feedbackForm.style.display = "none";
-  feedbackForm.innerHTML = `
-    <textarea class="ws-feedback-text" placeholder="Optional note..." rows="3"></textarea>
-    <button class="ws-submit-feedback">Submit</button>
-  `;
+  const feedbackLabel = document.createElement("div");
+  feedbackLabel.style.fontSize = "12px";
+  feedbackLabel.style.color = "#666";
+  feedbackLabel.style.marginTop = "8px";
+  feedbackLabel.textContent = "Feedback (what was good & what could improve):";
+
+  const feedbackText = document.createElement("textarea");
+  feedbackText.className = "ws-feedback-text";
+  feedbackText.placeholder = "E.g., 'Great tone, but missing the $0 down option. Too long for Messenger.'";
+  feedbackText.rows = "3";
+
+  const submitFeedbackBtn = document.createElement("button");
+  submitFeedbackBtn.className = "ws-submit-feedback";
+  submitFeedbackBtn.textContent = "Save Feedback";
 
   const thankYou = document.createElement("div");
   thankYou.className = "ws-feedback-thanks";
@@ -116,8 +123,10 @@ function showPopup(reply, selectedText) {
   const actions = document.createElement("div");
   actions.className = "ws-actions";
   actions.appendChild(copyBtn);
-  actions.appendChild(feedbackRow);
-  actions.appendChild(feedbackForm);
+  actions.appendChild(regenerateBtn);
+  actions.appendChild(feedbackLabel);
+  actions.appendChild(feedbackText);
+  actions.appendChild(submitFeedbackBtn);
   actions.appendChild(thankYou);
 
   popup.appendChild(header);
@@ -175,47 +184,30 @@ function showPopup(reply, selectedText) {
     }
   });
 
-  // Feedback buttons
-  const thumbUp = feedbackRow.querySelector(".ws-thumb-up");
-  const thumbDown = feedbackRow.querySelector(".ws-thumb-down");
-  let selectedRating = 0;
+  // Regenerate button
+  regenerateBtn.addEventListener("click", async () => {
+    regenerateBtn.textContent = "Regenerating...";
+    regenerateBtn.disabled = true;
 
-  thumbUp.addEventListener("click", () => {
-    if (selectedRating === 1) {
-      selectedRating = 0;
-      thumbUp.classList.remove("active");
-      feedbackForm.style.display = "none";
-    } else {
-      selectedRating = 1;
-      thumbUp.classList.add("active");
-      thumbDown.classList.remove("active");
-      feedbackForm.style.display = "block";
-    }
-  });
-
-  thumbDown.addEventListener("click", () => {
-    if (selectedRating === -1) {
-      selectedRating = 0;
-      thumbDown.classList.remove("active");
-      feedbackForm.style.display = "none";
-    } else {
-      selectedRating = -1;
-      thumbDown.classList.add("active");
-      thumbUp.classList.remove("active");
-      feedbackForm.style.display = "block";
-    }
+    chrome.runtime.sendMessage({
+      type: "REGENERATE_REPLY",
+      selectedText,
+      isFollowUp
+    });
   });
 
   // Submit feedback
-  const submitBtn = feedbackForm.querySelector(".ws-submit-feedback");
-  const textArea = feedbackForm.querySelector(".ws-feedback-text");
+  submitFeedbackBtn.addEventListener("click", () => {
+    const feedbackText = feedbackText.value.trim();
 
-  submitBtn.addEventListener("click", () => {
-    const comment = textArea.value.trim();
-    const feedback = { rating: selectedRating, comment };
+    if (!feedbackText) {
+      alert("Please provide some feedback before submitting.");
+      return;
+    }
+
     chrome.runtime.sendMessage({
       type: "SAVE_FEEDBACK",
-      feedback,
+      feedback: feedbackText,
       selectedText,
       reply
     }, () => {

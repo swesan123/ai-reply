@@ -122,12 +122,10 @@ async function callOpenAI(apiKey, systemPrompt, userText) {
   return data.choices?.[0]?.message?.content ?? "(No response)";
 }
 
-async function saveFeedback(feedback, selectedText, reply) {
+async function saveFeedback(feedbackText, selectedText, reply) {
   const { memoryMd } = await chrome.storage.local.get("memoryMd");
   const date = new Date().toISOString().split("T")[0];
-  const rating = feedback.rating === 1 ? "GOOD" : "BAD";
-  const comment = feedback.comment ? ` — ${feedback.comment}` : "";
-  const entry = `\n## ${date} [${rating}]${comment}\n**Customer message:** ${selectedText.slice(0, 400)}\n**Reply snippet:** ${reply.slice(0, 400)}\n`;
+  const entry = `\n## ${date}\n${feedbackText}\n**Customer message:** ${selectedText.slice(0, 400)}\n**Reply snippet:** ${reply.slice(0, 400)}\n`;
   const updated = (memoryMd || "") + entry;
   await chrome.storage.local.set({ memoryMd: updated });
 }
@@ -205,7 +203,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await chrome.tabs.sendMessage(tab.id, {
       type: "SHOW_REPLY",
       reply,
-      selectedText
+      selectedText,
+      isFollowUp
     });
   } catch (err) {
     console.error("Failed to send reply to tab:", err);
@@ -216,5 +215,66 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "SAVE_FEEDBACK") {
     saveFeedback(msg.feedback, msg.selectedText, msg.reply).then(() => sendResponse({ ok: true }));
     return true;
+  } else if (msg.type === "REGENERATE_REPLY") {
+    // Regenerate with the same parameters as the last reply
+    handleRegenerate(msg.selectedText, msg.isFollowUp, sender.tab.id);
+    sendResponse({ ok: true });
+    return true;
   }
 });
+
+async function handleRegenerate(selectedText, isFollowUp, tabId) {
+  const { geminiKey, openaiKey, provider, memoryMd, systemPrompt: customPrompt } = await chrome.storage.local.get([
+    "geminiKey",
+    "openaiKey",
+    "provider",
+    "memoryMd",
+    "systemPrompt"
+  ]);
+
+  const systemPrompt = isFollowUp
+    ? buildFollowUpPrompt(memoryMd || "")
+    : await buildSystemPrompt(customPrompt, memoryMd || "");
+
+  // Show "Generating..." immediately
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "SHOW_LOADING" });
+  } catch {
+    console.error("Could not show loading state");
+  }
+
+  let reply;
+  let error = null;
+  try {
+    if ((provider || "gemini") === "gemini") {
+      reply = await callGemini(geminiKey, systemPrompt, selectedText);
+    } else {
+      reply = await callOpenAI(openaiKey, systemPrompt, selectedText);
+    }
+  } catch (err) {
+    error = err.message;
+    reply = `Error: ${err.message}`;
+  }
+
+  // Log the activity
+  await addDebugLog({
+    type: isFollowUp ? "Follow-up Reply" : "Lease Reply",
+    provider: provider || "gemini",
+    selectedText,
+    systemPrompt,
+    reply,
+    error
+  });
+
+  // Send the actual reply
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SHOW_REPLY",
+      reply,
+      selectedText,
+      isFollowUp
+    });
+  } catch (err) {
+    console.error("Failed to send reply to tab:", err);
+  }
+}
