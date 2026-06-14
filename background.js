@@ -6,8 +6,8 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-function buildSystemPrompt(memoryMd) {
-  const base = `You are a friendly, professional sales agent for Swesan Leasing.
+async function buildSystemPrompt(customPrompt, memoryMd) {
+  const base = customPrompt || `You are a friendly, professional sales agent for Swesan Leasing.
 Your job is to respond to potential customers interested in leasing vending machines.
 Website: https://swesanleasing.com/
 
@@ -101,14 +101,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "generateLeaseReply") return;
   const selectedText = info.selectionText;
 
-  const { geminiKey, openaiKey, provider, memoryMd } = await chrome.storage.local.get([
+  const { geminiKey, openaiKey, provider, memoryMd, systemPrompt: customPrompt } = await chrome.storage.local.get([
     "geminiKey",
     "openaiKey",
     "provider",
-    "memoryMd"
+    "memoryMd",
+    "systemPrompt"
   ]);
 
-  const systemPrompt = buildSystemPrompt(memoryMd || "");
+  const systemPrompt = await buildSystemPrompt(customPrompt, memoryMd || "");
 
   let reply;
   try {
