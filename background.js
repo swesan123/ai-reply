@@ -4,6 +4,11 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Generate Lease Reply",
     contexts: ["selection"]
   });
+  chrome.contextMenus.create({
+    id: "generateFollowUpReply",
+    title: "Generate Follow-up Reply",
+    contexts: ["selection"]
+  });
 });
 
 async function buildSystemPrompt(customPrompt, memoryMd) {
@@ -34,11 +39,48 @@ TONE & STYLE:
 - Do not invent deals or prices not listed above.
 - Do not make promises about availability beyond what is stated.
 - If the customer's message is unclear, ask one clarifying question.
+- Use plain text only. No Markdown formatting like bold (**), asterisks (*), hashtags, or bullet points. Facebook Messenger does not support Markdown.
+- The selected text may contain a full conversation. Messages asking about machines or prices are from the customer. Messages describing the service are from the agent. Always reply as the agent (Swesan Leasing), never as the customer.
 
 The following message was received from a potential customer. Write a reply:`;
 
   if (memoryMd && memoryMd.trim().length > 0) {
     return base + `\n\n---\nPAST FEEDBACK & PREFERENCES (use these to improve your replies):\n${memoryMd}\n---`;
+  }
+  return base;
+}
+
+function buildFollowUpPrompt(memoryMd) {
+  const today = new Date().toDateString();
+  const base = `You are an expert sales agent for Swesan Leasing doing a follow-up on a Facebook Messenger lead.
+
+The current date is: ${today}
+
+Read the highlighted chat log to find the date of the most recent message. Calculate the time gap between that message and today. Then generate a response using EXACTLY ONE of these four strategies based on the time gap:
+
+1 to 3 days ago (The Quick Nudge):
+The lead got busy. Be incredibly brief and low-pressure. Just float it back to the top of their inbox.
+Example vibe: "Hey [Name], just floating this to the top of your inbox. Let me know if you still had any questions!"
+
+4 to 10 days ago (The Value Add):
+Remind them of a specific benefit. Mention the $0 down Revenue Share option in case upfront costs are holding them back.
+
+11 to 25 days ago (The Breakup):
+Play on FOMO. Tell them you assume the timing isn't right and you're going to close their file for now, but they can reach out if things change.
+
+1+ months ago (The Revival):
+Acknowledge it's been a while. Mention that pricing has been overhauled — introduce the flat $150/month lease where they keep 100% of sales. Ask if they are still looking for a machine.
+
+Rules for all strategies:
+- Use plain text only. No Markdown, no bold, no asterisks, no bullet symbols.
+- Keep it short and conversational. No deal lists.
+- Messages asking about machines or prices are from the customer. Messages describing the service are from the agent.
+- Reply as the agent (Swesan Leasing) only.
+
+The following is the conversation to follow up on:`;
+
+  if (memoryMd && memoryMd.trim().length > 0) {
+    return base + `\n\n---\nPAST FEEDBACK & PREFERENCES:\n${memoryMd}\n---`;
   }
   return base;
 }
@@ -92,13 +134,13 @@ async function saveFeedback(feedback, selectedText, reply) {
   const date = new Date().toISOString().split("T")[0];
   const rating = feedback.rating === 1 ? "GOOD" : "BAD";
   const comment = feedback.comment ? ` — ${feedback.comment}` : "";
-  const entry = `\n## ${date} [${rating}]${comment}\n**Customer message:** ${selectedText.slice(0, 120)}\n**Reply snippet:** ${reply.slice(0, 120)}\n`;
+  const entry = `\n## ${date} [${rating}]${comment}\n**Customer message:** ${selectedText.slice(0, 400)}\n**Reply snippet:** ${reply.slice(0, 400)}\n`;
   const updated = (memoryMd || "") + entry;
   await chrome.storage.local.set({ memoryMd: updated });
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "generateLeaseReply") return;
+  if (info.menuItemId !== "generateLeaseReply" && info.menuItemId !== "generateFollowUpReply") return;
   const selectedText = info.selectionText;
 
   const { geminiKey, openaiKey, provider, memoryMd, systemPrompt: customPrompt } = await chrome.storage.local.get([
@@ -109,7 +151,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     "systemPrompt"
   ]);
 
-  const systemPrompt = await buildSystemPrompt(customPrompt, memoryMd || "");
+  const isFollowUp = info.menuItemId === "generateFollowUpReply";
+  const systemPrompt = isFollowUp
+    ? buildFollowUpPrompt(memoryMd || "")
+    : await buildSystemPrompt(customPrompt, memoryMd || "");
 
   let reply;
   try {
