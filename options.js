@@ -4,9 +4,11 @@ const providerInputs = document.querySelectorAll("input[name='provider']");
 const systemPromptInput = document.getElementById("systemPrompt");
 const memoryPreview = document.getElementById("memoryPreview");
 const saveBtn = document.getElementById("saveBtn");
+const savePromptBtn = document.getElementById("savePromptBtn");
 const clearMemoryBtn = document.getElementById("clearMemory");
 const resetPromptBtn = document.getElementById("resetPrompt");
 const saveStatus = document.getElementById("saveStatus");
+const promptSaveStatus = document.getElementById("promptSaveStatus");
 
 const DEFAULT_SYSTEM_PROMPT = `You are a friendly, professional sales agent for Swesan Leasing.
 Your job is to respond to potential customers interested in leasing vending machines.
@@ -54,7 +56,7 @@ async function loadSettings() {
   if (provider) {
     document.querySelector(`input[name="provider"][value="${provider}"]`).checked = true;
   }
-  systemPromptInput.value = systemPrompt || DEFAULT_SYSTEM_PROMPT;
+  systemPromptInput.value = systemPrompt || "";
   if (memoryMd) {
     memoryPreview.value = memoryMd;
   }
@@ -64,18 +66,29 @@ saveBtn.addEventListener("click", async () => {
   const geminiKey = geminiKeyInput.value.trim();
   const openaiKey = openaiKeyInput.value.trim();
   const provider = document.querySelector("input[name='provider']:checked").value;
-  const systemPrompt = systemPromptInput.value.trim();
 
   await chrome.storage.local.set({
     geminiKey,
     openaiKey,
-    provider,
-    systemPrompt
+    provider
   });
 
   saveStatus.textContent = "Saved!";
   setTimeout(() => {
     saveStatus.textContent = "";
+  }, 2000);
+});
+
+savePromptBtn.addEventListener("click", async () => {
+  const systemPrompt = systemPromptInput.value.trim();
+
+  await chrome.storage.local.set({
+    systemPrompt
+  });
+
+  promptSaveStatus.textContent = "Prompt saved!";
+  setTimeout(() => {
+    promptSaveStatus.textContent = "";
   }, 2000);
 });
 
@@ -86,9 +99,14 @@ clearMemoryBtn.addEventListener("click", async () => {
   }
 });
 
-resetPromptBtn.addEventListener("click", () => {
-  if (confirm("Reset to default system prompt? You can edit it again anytime.")) {
-    systemPromptInput.value = DEFAULT_SYSTEM_PROMPT;
+resetPromptBtn.addEventListener("click", async () => {
+  if (confirm("Clear custom prompt and use the default? You can edit it again anytime.")) {
+    systemPromptInput.value = "";
+    await chrome.storage.local.set({ systemPrompt: "" });
+    promptSaveStatus.textContent = "Reset to default!";
+    setTimeout(() => {
+      promptSaveStatus.textContent = "";
+    }, 2000);
   }
 });
 
