@@ -139,7 +139,18 @@
   </section>
 
   <section>
-    <h2>Prompt Monitor (Debug)</h2>
+    <h2>Live Activity Log (Debug)</h2>
+    <p>Real-time log of all AI requests and responses. Shows exactly what was sent and received.</p>
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <button class="secondary" id="clearLogBtn">Clear Log</button>
+      <button id="autoRefreshToggle">Auto-Refresh: ON</button>
+      <span style="font-size: 12px; color: #999; padding-top: 8px;" id="logStatus"></span>
+    </div>
+    <textarea id="activityLog" rows="15" readonly style="font-family: monospace; font-size: 11px; background: #1e1e1e; color: #d4d4d4; white-space: pre-wrap; word-break: break-all;"></textarea>
+  </section>
+
+  <section>
+    <h2>Prompt Preview (Debug)</h2>
     <p>See exactly what prompt the AI will receive on your next reply. This helps debug why feedback might not be working.</p>
     <label>
       <input type="radio" name="monitorType" value="lease" checked>

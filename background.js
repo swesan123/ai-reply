@@ -139,6 +139,18 @@ async function saveFeedback(feedback, selectedText, reply) {
   await chrome.storage.local.set({ memoryMd: updated });
 }
 
+async function addDebugLog(logEntry) {
+  const { debugLog } = await chrome.storage.local.get("debugLog");
+  const logs = debugLog ? JSON.parse(debugLog) : [];
+  logs.push({
+    timestamp: new Date().toLocaleString(),
+    ...logEntry
+  });
+  // Keep only last 50 logs
+  if (logs.length > 50) logs.shift();
+  await chrome.storage.local.set({ debugLog: JSON.stringify(logs) });
+}
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "generateLeaseReply" && info.menuItemId !== "generateFollowUpReply") return;
   const selectedText = info.selectionText;
@@ -173,6 +185,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   let reply;
+  let error = null;
   try {
     if ((provider || "gemini") === "gemini") {
       reply = await callGemini(geminiKey, systemPrompt, selectedText);
@@ -180,8 +193,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       reply = await callOpenAI(openaiKey, systemPrompt, selectedText);
     }
   } catch (err) {
+    error = err.message;
     reply = `Error: ${err.message}`;
   }
+
+  // Log the activity
+  await addDebugLog({
+    type: isFollowUp ? "Follow-up Reply" : "Lease Reply",
+    provider: provider || "gemini",
+    selectedText,
+    systemPrompt,
+    reply,
+    error
+  });
 
   // Send the actual reply
   try {

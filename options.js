@@ -12,6 +12,13 @@ const promptSaveStatus = document.getElementById("promptSaveStatus");
 const monitorTypeInputs = document.querySelectorAll("input[name='monitorType']");
 const promptMonitor = document.getElementById("promptMonitor");
 const refreshMonitorBtn = document.getElementById("refreshMonitor");
+const activityLog = document.getElementById("activityLog");
+const clearLogBtn = document.getElementById("clearLogBtn");
+const autoRefreshToggle = document.getElementById("autoRefreshToggle");
+const logStatus = document.getElementById("logStatus");
+
+let autoRefresh = true;
+let logRefreshInterval = null;
 
 const DEFAULT_SYSTEM_PROMPT = `You are a friendly, professional sales agent for Swesan Leasing.
 Your job is to respond to potential customers interested in leasing vending machines.
@@ -185,5 +192,65 @@ monitorTypeInputs.forEach(input => {
 
 refreshMonitorBtn.addEventListener("click", updatePromptMonitor);
 
+// Activity log functions
+async function loadActivityLog() {
+  const { debugLog } = await chrome.storage.local.get("debugLog");
+  const logs = debugLog ? JSON.parse(debugLog) : [];
+
+  if (logs.length === 0) {
+    activityLog.value = "[No activity yet. Generate a reply to see logs here.]";
+    return;
+  }
+
+  // Reverse to show newest first
+  const displayLogs = logs.slice().reverse();
+  let output = "";
+
+  displayLogs.forEach((log, idx) => {
+    output += `\n${"=".repeat(80)}\n`;
+    output += `[${idx + 1}] ${log.timestamp}\n`;
+    output += `Type: ${log.type}\n`;
+    output += `Provider: ${log.provider}\n`;
+    output += `\n--- CUSTOMER MESSAGE ---\n`;
+    output += `${log.selectedText}\n`;
+    output += `\n--- SYSTEM PROMPT SENT ---\n`;
+    output += `${log.systemPrompt}\n`;
+    output += `\n--- AI RESPONSE ---\n`;
+    output += `${log.reply}\n`;
+
+    if (log.error) {
+      output += `\n--- ERROR ---\n`;
+      output += `${log.error}\n`;
+    }
+  });
+
+  activityLog.value = output;
+  activityLog.scrollTop = activityLog.scrollHeight;
+}
+
+clearLogBtn.addEventListener("click", async () => {
+  if (confirm("Clear all activity logs? This cannot be undone.")) {
+    await chrome.storage.local.set({ debugLog: JSON.stringify([]) });
+    activityLog.value = "[Log cleared]";
+    logStatus.textContent = "Logs cleared";
+    setTimeout(() => { logStatus.textContent = ""; }, 2000);
+  }
+});
+
+autoRefreshToggle.addEventListener("click", () => {
+  autoRefresh = !autoRefresh;
+  autoRefreshToggle.textContent = `Auto-Refresh: ${autoRefresh ? "ON" : "OFF"}`;
+
+  if (autoRefresh) {
+    logRefreshInterval = setInterval(loadActivityLog, 1000);
+  } else {
+    clearInterval(logRefreshInterval);
+  }
+});
+
+// Start auto-refresh
+logRefreshInterval = setInterval(loadActivityLog, 1000);
+
 loadSettings();
 updatePromptMonitor();
+loadActivityLog();
